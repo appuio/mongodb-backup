@@ -1,0 +1,60 @@
+# == Authors
+#
+# * David Gubler <mailto:david.gubler@vshn.ch>
+#
+# == License
+#
+# Copyright (c) 2017, VSHN AG, info@vshn.ch
+# Licensed under "BSD 3-Clause". See LICENSE file.
+#
+apiVersion: v1
+kind: Template
+metadata:
+  name: mongodb-backup-template
+  annotations:
+    description: 'Template for MongoDB container backup job'
+    tags: 'database,nosql'
+parameters:
+  - name: MONGODB_BACKUP_KEEP
+    description: 'Number of backups to keep'
+    value: '5'
+  - name: MONGODB_BACKUP_SCHEDULE
+    description: 'Cron-like schedule expression. Default: Every hour at :39'
+    value: '39 * * * *'
+  - name: MONGODB_BACKUP_VOLUME_CLAIM
+    description: 'Name of the volume claim to be used as storage'
+    value: 'mongodb-backup'
+  - name: MONGODB_ADMIN_PASSWORD
+    description: 'MongoDB admin user''s password. Required.'
+objects:
+  - apiVersion: batch/v2alpha1
+    kind: ScheduledJob
+    metadata:
+      name: mongodb-backup
+    spec:
+      schedule: ${MONGODB_BACKUP_SCHEDULE}
+      concurrencyPolicy: Forbid
+      jobTemplate:             
+        spec:
+          template:
+            spec:
+              volumes:
+                - name: mongodb-backup
+                  persistentVolumeClaim:
+                    claimName: ${MONGODB_BACKUP_VOLUME_CLAIM}
+              containers:
+                - name: mongodb-backup
+                  image: 'registry.access.redhat.com/rhscl/mongodb-32-rhel7@sha256:4143584de718ef477fe03e3ae15985c68e0ce9dca8ba089dfa5927e800e59e69'
+                  command:
+                    - 'bash'
+                    - '-c'
+                    - 'ls -rdt /var/lib/mongodb-backup/dump-* | head -n -$MONGODB_BACKUP_KEEP | xargs rm -rf; DIR=/var/lib/mongodb-backup/dump-`date +%F-%T`; mongodump -j 1 -u admin -p $MONGODB_ADMIN_PASSWORD -h $MONGODB_SERVICE_HOST --port $MONGODB_SERVICE_PORT --authenticationDatabase=admin --gzip --out=$DIR; echo "Backup complete"; echo; echo "To restore, use:"; echo "~# mongorestore -u admin -p \$MONGODB_ADMIN_PASSWORD --authenticationDatabase admin --gzip $DIR/DB_TO_RESTORE -d DB_TO_RESTORE_INTO"; sleep 60'
+                  env:
+                    - name: MONGODB_BACKUP_KEEP
+                      value: ${MONGODB_BACKUP_KEEP}
+                    - name: MONGODB_ADMIN_PASSWORD
+                      value: ${MONGODB_ADMIN_PASSWORD}
+                  volumeMounts:
+                    - name: mongodb-backup
+                      mountPath: /var/lib/mongodb-backup
+              restartPolicy: Never
