@@ -26,6 +26,10 @@ parameters:
     value: 'mongodb-backup'
   - name: MONGODB_ADMIN_PASSWORD
     description: 'MongoDB admin user''s password. Required.'
+  - name: MONGODB_SERVICE_HOST
+    description: 'MongoDB Host server to backup from.'
+  - name: MONGODB_SERVICE_PORT
+    description: 'Port from the host server where MongoDB is listening to.'
 objects:
   - apiVersion: batch/v2alpha1
     kind: ScheduledJob
